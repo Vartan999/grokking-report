@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Grokking — Mechanistic Interpretability Project</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']] },
+  options: { skipHtmlTags: ['script','noscript','style','textarea'] }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+/* ── Reset & base ───────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0d0f;
+  --panel:#13131a;
+  --card:#0f0f1a;
+  --border:#1e2030;
+  --border2:#2a3a60;
+  --text:#c8d8f0;
+  --dim:#5a6080;
+  --blue:#7eb8f7;
+  --violet:#a78bfa;
+  --green:#4ade80;
+  --red:#f87171;
+  --accent-grad:linear-gradient(135deg,#7eb8f7 0%,#a78bfa 100%);
+  --font-sans:'Inter','Segoe UI',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);
+     font-size:15px;line-height:1.7;min-height:100vh}
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+h1,h2,h3,h4{line-height:1.25;font-weight:700}
+p{margin-bottom:1rem;color:var(--text)}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);background:#1a1a2e;padding:2px 6px;
+     border-radius:4px;font-size:0.88em;color:#a78bfa}
+pre{background:#1a1a2e;border:1px solid var(--border);border-radius:8px;
+    padding:1.2rem;overflow-x:auto;margin:1.2rem 0}
+pre code{background:none;padding:0;color:#c8d8f0}
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.container{max-width:960px;margin:0 auto;padding:0 1.5rem}
+.wide{max-width:1200px;margin:0 auto;padding:0 1.5rem}
+
+/* ── Nav ─────────────────────────────────────────────────────────────────── */
+nav{position:sticky;top:0;z-index:100;background:rgba(13,13,15,.92);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+    padding:.75rem 0}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;
+           max-width:1200px;margin:0 auto;padding:0 1.5rem;flex-wrap:wrap;gap:.5rem}
+.nav-brand{font-size:1rem;font-weight:700;background:var(--accent-grad);
+           -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:1.2rem;flex-wrap:wrap}
+.nav-links a{color:var(--dim);font-size:.85rem;transition:color .2s}
+.nav-links a:hover{color:var(--blue);text-decoration:none}
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+.hero{padding:5rem 0 3.5rem;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(126,184,247,.12) 0%,transparent 70%);
+  pointer-events:none}
+.hero-badge{display:inline-block;background:#1a0f2e;border:1px solid #7c3aed;
+            border-radius:20px;padding:.3rem 1rem;color:var(--violet);
+            font-size:.78rem;font-family:var(--font-mono);margin-bottom:1.2rem;letter-spacing:.05em}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;margin-bottom:.8rem;
+  background:var(--accent-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:1.05rem;color:var(--dim);max-width:640px;margin:0 auto 2rem}
+.hero-meta{display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:2.5rem}
+.meta-pill{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+           padding:.35rem .9rem;font-family:var(--font-mono);font-size:.8rem;color:var(--blue)}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1.3rem;
+     border-radius:8px;font-size:.88rem;font-weight:600;transition:all .2s;cursor:pointer;border:0}
+.btn-primary{background:var(--accent-grad);color:#0d0d0f}
+.btn-primary:hover{opacity:.88;text-decoration:none;transform:translateY(-1px)}
+.btn-outline{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+.btn-outline:hover{background:rgba(126,184,247,.08);text-decoration:none}
+
+/* ── Cards & sections ───────────────────────────────────────────────────── */
+section{padding:3.5rem 0}
+section:nth-child(even){background:rgba(255,255,255,.015)}
+.section-label{font-size:.73rem;font-family:var(--font-mono);color:var(--violet);
+               text-transform:uppercase;letter-spacing:.12em;margin-bottom:.5rem}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);margin-bottom:.6rem;
+  background:var(--accent-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.section-intro{color:var(--dim);max-width:660px;margin-bottom:2.5rem;line-height:1.75}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+      padding:1.5rem;transition:border-color .25s,transform .2s}
+.card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.card h3{color:var(--blue);font-size:1rem;margin-bottom:.6rem}
+.card p{color:var(--dim);font-size:.9rem;margin:0}
+
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.2rem}
+
+/* ── Metric tiles ───────────────────────────────────────────────────────── */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;
+             margin:1.5rem 0}
+.metric{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+        padding:1rem 1.2rem;text-align:center}
+.metric-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:.3rem}
+.metric-val{font-family:var(--font-mono);font-size:1.5rem;font-weight:700;color:#e8f4ff}
+.metric-val.ok{color:var(--green)}
+.metric-val.hi{color:var(--violet)}
+.metric-val.warn{color:#fbbf24}
+
+/* ── Phase boxes ─────────────────────────────────────────────────────────── */
+.phase-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;
+           margin:1.5rem 0}
+.phase{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.3rem}
+.phase-header{display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem}
+.phase-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;
+           justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0}
+.p1 .phase-num{background:#2a1f00;color:#fbbf24}
+.p2 .phase-num{background:#1a1040;color:var(--violet)}
+.p3 .phase-num{background:#0f2a18;color:var(--green)}
+.phase-title{font-weight:700;font-size:.95rem}
+.p1 .phase-title{color:#fbbf24}
+.p2 .phase-title{color:var(--violet)}
+.p3 .phase-title{color:var(--green)}
+.phase p{font-size:.88rem;color:var(--dim);margin:0;line-height:1.6}
+
+/* ── Equation box ───────────────────────────────────────────────────────── */
+.eq-box{background:#13131a;border:1px solid var(--border2);border-radius:10px;
+        padding:1.2rem 1.5rem;text-align:center;margin:1.5rem 0;overflow-x:auto}
+.eq-label{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem}
+
+/* ── Finding strip ──────────────────────────────────────────────────────── */
+.finding{background:var(--panel);border-left:3px solid var(--violet);
+         border-radius:0 8px 8px 0;padding:1rem 1.3rem;margin:1.2rem 0}
+.finding-title{font-weight:700;color:var(--violet);font-size:.9rem;margin-bottom:.3rem}
+.finding p{font-size:.88rem;color:var(--dim);margin:0}
+
+/* ── Quote ──────────────────────────────────────────────────────────────── */
+blockquote{border-left:3px solid var(--violet);padding:1rem 1.5rem;
+           margin:1.5rem 0;background:rgba(167,139,250,.05);border-radius:0 8px 8px 0}
+blockquote p{font-style:italic;color:var(--blue);margin:0}
+
+/* ── Table ──────────────────────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;margin:1.5rem 0}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{background:#1a2040;color:var(--blue);padding:.7rem 1rem;text-align:left;
+   border-bottom:1px solid var(--border)}
+td{padding:.65rem 1rem;border-bottom:1px solid var(--border);color:var(--text)}
+tr:last-child td{border-bottom:0}
+tr:hover td{background:rgba(126,184,247,.04)}
+
+/* ── Steps / algorithm ──────────────────────────────────────────────────── */
+.steps{counter-reset:step;display:flex;flex-direction:column;gap:.8rem;margin:1.2rem 0}
+.step{display:flex;gap:1rem;align-items:flex-start}
+.step::before{counter-increment:step;content:counter(step);min-width:28px;height:28px;
+  border-radius:50%;background:var(--accent-grad);color:#0d0d0f;font-weight:700;
+  font-size:.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1rem}
+.step-body{color:var(--dim);font-size:.9rem;padding-top:.15rem}
+.step-body strong{color:var(--text)}
+
+/* ── Alignment section ──────────────────────────────────────────────────── */
+.align-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin:1.5rem 0}
+.align-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.3rem}
+.align-card .icon{font-size:1.6rem;margin-bottom:.6rem}
+.align-card h4{color:var(--blue);font-size:.95rem;margin-bottom:.5rem}
+.align-card p{font-size:.87rem;color:var(--dim);margin:0;line-height:1.6}
+
+/* ── TOC ─────────────────────────────────────────────────────────────────── */
+.toc{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+     padding:1.5rem;margin:2rem 0}
+.toc h3{color:var(--violet);font-size:.9rem;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem}
+.toc ol{padding-left:1.4rem;display:flex;flex-direction:column;gap:.4rem}
+.toc li a{color:var(--dim);font-size:.9rem;transition:color .2s}
+.toc li a:hover{color:var(--blue)}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+footer{border-top:1px solid var(--border);padding:2.5rem 0;text-align:center;color:var(--dim);font-size:.85rem}
+footer a{color:var(--blue)}
+
+/* ── Vis placeholder ─────────────────────────────────────────────────────── */
+.vis-canvas{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+            padding:2rem;margin:1.5rem 0;position:relative;overflow:hidden}
+.vis-canvas svg{display:block;margin:0 auto}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media(max-width:640px){
+  .nav-links{display:none}
+  .hero h1{font-size:1.8rem}
+  .metric-val{font-size:1.1rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════ NAV ════════════════ -->
+<nav>
+  <div class="nav-inner">
+    <span class="nav-brand">Grokking · Mechanistic Interpretability</span>
+    <div class="nav-links">
+      <a href="#overview">Overview</a>
+      <a href="#training">Training</a>
+      <a href="#fourier">Fourier</a>
+      <a href="#phases">Three Phases</a>
+      <a href="#data-fraction">Data Fraction</a>
+      <a href="#multiplication">Multiplication</a>
+      <a href="#cogrokking">Co-Grokking</a>
+      <a href="#alignment">Alignment</a>
+      <a href="#references">References</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<div class="hero">
+  <div class="container">
+    <div class="hero-badge">📄 Nanda et al. 2023 · arXiv:2301.05217</div>
+    <h1>Grokking:<br/>Mechanistic Interpretability Project</h1>
+    <p class="hero-sub">
+      Reproducing and extending the grokking phenomenon — delayed generalisation in a
+      one-layer Transformer trained on modular arithmetic — through the lens of
+      mechanistic interpretability and AI alignment.
+    </p>
+    <div class="hero-meta">
+      <span class="meta-pill">Task: (a + b) mod p</span>
+      <span class="meta-pill">1-layer Transformer</span>
+      <span class="meta-pill">d_model = 128</span>
+      <span class="meta-pill">4 attention heads</span>
+      <span class="meta-pill">7 Components</span>
+    </div>
+    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+      <a class="btn btn-primary" href="https://github.com/Vartan999/grokking-report">
+        ⭐ View on GitHub
+      </a>
+      <a class="btn btn-outline" href="https://arxiv.org/abs/2301.05217" target="_blank">
+        📖 Original Paper
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ════════════════ TOC ════════════════ -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#overview">Project Overview</a></li>
+    <li><a href="#training">Component 1 — Training &amp; Report</a></li>
+    <li><a href="#fourier">Component 2 — Fourier Analysis</a></li>
+    <li><a href="#phases">Component 3 — Three Phases of Grokking</a></li>
+    <li><a href="#data-fraction">Component 4 — Data-Fraction Study</a></li>
+    <li><a href="#multiplication">Component 6 — Modular Multiplication</a></li>
+    <li><a href="#cogrokking">Component 7 — Co-Grokking</a></li>
+    <li><a href="#alignment">Component 5 — AI Alignment &amp; Mechanistic Interpretability</a></li>
+    <li><a href="#references">References</a></li>
+  </ol>
+</div>
+
+</div><!-- /container -->
+
+<!-- ════════════════ OVERVIEW ════════════════ -->
+<section id="overview">
+<div class="container">
+  <div class="section-label">Project Overview</div>
+  <h2 class="section-title">What is Grokking?</h2>
+  <p class="section-intro">
+    Grokking is the phenomenon of <em>delayed generalisation</em>: a neural network first
+    memorises the training set (achieving 100 % training accuracy) and then — after many
+    more training steps — suddenly generalises to unseen data, closing a previously wide
+    generalisation gap almost discontinuously.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>🔬 The Core Phenomenon</h3>
+      <p>
+        A 1-layer Transformer trained on modular arithmetic first memorises every
+        training pair by brute force, then undergoes a phase transition and discovers
+        a compact Fourier-based algorithm that generalises perfectly — often thousands
+        of epochs after memorisation is complete.
+      </p>
+    </div>
+    <div class="card">
+      <h3>🧩 Why It Matters</h3>
+      <p>
+        Grokking is a tractable model of a much harder problem: how do we know whether
+        an AI system has found a <em>genuine, robust algorithm</em> versus a brittle
+        memorisation? Mechanistic interpretability gives us the tools to look inside and
+        tell the difference.
+      </p>
+    </div>
+    <div class="card">
+      <h3>📐 The Mathematical Algorithm</h3>
+      <p>
+        The network implements the trigonometric product identity for a sparse set of
+        key frequencies $k^*$, encoding tokens as sinusoids and computing their
+        interactions via ReLU neurons.
+      </p>
+    </div>
+    <div class="card">
+      <h3>🏗 Model Architecture</h3>
+      <p>
+        1-layer Transformer with embedding, positional embedding, one multi-head
+        attention block, one MLP block (ReLU), and an unembedding head. Input:
+        tokens <code>[a, b, =]</code>. Output: logits over $\{0,\ldots,p-1\}$.
+      </p>
+    </div>
+  </div>
+
+  <div class="eq-box" style="margin-top:2rem">
+    <div class="eq-label">The Fourier Circuit Identity</div>
+    $$\cos\!\left(\frac{2\pi k(a+b)}{p}\right) =
+      \cos\!\left(\frac{2\pi ka}{p}\right)\cos\!\left(\frac{2\pi kb}{p}\right) -
+      \sin\!\left(\frac{2\pi ka}{p}\right)\sin\!\left(\frac{2\pi kb}{p}\right)$$
+    <p style="color:var(--dim);font-size:.85rem;margin-top:.6rem;margin-bottom:0">
+      The model learns to implement this identity for a sparse set of key frequencies
+      $k^* \subset \{1,\ldots,\lfloor p/2\rfloor\}$
+    </p>
+  </div>
+
+  <h3 style="color:var(--blue);margin:2rem 0 1rem">Hyperparameters</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Parameter</th><th>Value</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>p</code></td><td>97</td><td>Prime modulus (tokens: 0 … p−1 + "=")</td></tr>
+        <tr><td><code>d_model</code></td><td>128</td><td>Residual stream dimension</td></tr>
+        <tr><td><code>n_heads</code></td><td>4</td><td>Multi-head attention</td></tr>
+        <tr><td><code>d_mlp</code></td><td>512</td><td>4 × d_model</td></tr>
+        <tr><td><code>frac_train</code></td><td>30 %</td><td>Fraction of $p^2$ pairs used for training</td></tr>
+        <tr><td><code>lr</code></td><td>1 × 10<sup>−3</sup></td><td>AdamW, β = (0.9, 0.98)</td></tr>
+        <tr><td><code>weight_decay</code></td><td>1.0</td><td>Critical driver of grokking</td></tr>
+        <tr><td><code>num_epochs</code></td><td>25 000</td><td>Full-batch gradient descent</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ COMPONENT 1 ════════════════ -->
+<section id="training">
+<div class="container">
+  <div class="section-label">Component 1</div>
+  <h2 class="section-title">Training &amp; Grokking Report</h2>
+  <p class="section-intro">
+    Reproducing the grokking phenomenon: training loss collapses quickly (memorisation),
+    while validation accuracy lags by thousands of epochs before jumping to ≥ 95 %.
+  </p>
+
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-label">Total pairs</div><div class="metric-val hi">9,409</div></div>
+    <div class="metric"><div class="metric-label">Train pairs</div><div class="metric-val">2,822</div></div>
+    <div class="metric"><div class="metric-label">Val pairs</div><div class="metric-val">6,587</div></div>
+    <div class="metric"><div class="metric-label">Grokking epoch</div><div class="metric-val ok">~9,000</div></div>
+    <div class="metric"><div class="metric-label">Final val acc</div><div class="metric-val ok">≥ 95 %</div></div>
+  </div>
+
+  <!-- SVG loss-curve schematic -->
+  <div class="vis-canvas">
+    <p style="color:var(--dim);font-size:.8rem;margin-bottom:1rem;text-align:center">
+      Schematic loss &amp; accuracy curves (representative of a typical grokking run)
+    </p>
+    <svg viewBox="0 0 780 260" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width:780px">
+      <defs>
+        <linearGradient id="grad-blue" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#7eb8f7"/>
+          <stop offset="100%" stop-color="#a78bfa"/>
+        </linearGradient>
+      </defs>
+      <!-- axes left chart -->
+      <line x1="55" y1="20" x2="55" y2="230" stroke="#2a2a4a" stroke-width="1"/>
+      <line x1="55" y1="230" x2="370" y2="230" stroke="#2a2a4a" stroke-width="1"/>
+      <!-- axis labels -->
+      <text x="210" y="255" fill="#5a6080" font-size="11" text-anchor="middle" font-family="Inter,sans-serif">Epoch</text>
+      <text x="18" y="130" fill="#5a6080" font-size="11" text-anchor="middle" font-family="Inter,sans-serif" transform="rotate(-90,18,130)">Loss (log)</text>
+      <text x="210" y="14" fill="#c8d8f0" font-size="12" text-anchor="middle" font-family="Inter,sans-serif" font-weight="700">Loss Curves</text>
+      <!-- train loss: drops fast -->
+      <path d="M55,45 C90,42 130,90 180,160 C230,200 280,220 370,223"
+            stroke="#7eb8f7" stroke-width="2.2" fill="none"/>
+      <!-- val loss: stays high, then drops -->
+      <path d="M55,50 C90,52 150,55 220,58 C260,60 280,62 310,80 C330,110 350,160 370,222"
+            stroke="#f87171" stroke-width="2.2" fill="none"/>
+      <!-- grokking line -->
+      <line x1="310" y1="20" x2="310" y2="230" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="5,4"/>
+      <text x="314" y="34" fill="#4ade80" font-size="10" font-family="Inter,sans-serif">Grokking</text>
+      <!-- legend -->
+      <rect x="58" y="22" width="12" height="3" fill="#7eb8f7" rx="1"/>
+      <text x="74" y="26" fill="#c8d8f0" font-size="10" font-family="Inter,sans-serif">Train loss</text>
+      <rect x="58" y="34" width="12" height="3" fill="#f87171" rx="1"/>
+      <text x="74" y="38" fill="#c8d8f0" font-size="10" font-family="Inter,sans-serif">Val loss</text>
+
+      <!-- axes right chart -->
+      <line x1="435" y1="20" x2="435" y2="230" stroke="#2a2a4a" stroke-width="1"/>
+      <line x1="435" y1="230" x2="760" y2="230" stroke="#2a2a4a" stroke-width="1"/>
+      <text x="597" y="255" fill="#5a6080" font-size="11" text-anchor="middle" font-family="Inter,sans-serif">Epoch</text>
+      <text x="600" y="14" fill="#c8d8f0" font-size="12" text-anchor="middle" font-family="Inter,sans-serif" font-weight="700">Accuracy Curves</text>
+      <!-- 95% line -->
+      <line x1="435" y1="48" x2="760" y2="48" stroke="#4ade80" stroke-width="1" stroke-dasharray="3,3" opacity=".5"/>
+      <text x="762" y="51" fill="#4ade80" font-size="9" font-family="Inter,sans-serif">95%</text>
+      <!-- train acc: rises fast -->
+      <path d="M435,220 C460,218 490,120 530,50 C560,30 600,27 760,25"
+            stroke="#7eb8f7" stroke-width="2.2" fill="none"/>
+      <!-- val acc: stays low, then jumps -->
+      <path d="M435,220 C460,222 500,220 540,218 C570,216 580,210 590,180 C610,100 640,45 760,25"
+            stroke="#f87171" stroke-width="2.2" fill="none"/>
+      <!-- grokking line -->
+      <line x1="590" y1="20" x2="590" y2="230" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="5,4"/>
+      <text x="594" y="34" fill="#4ade80" font-size="10" font-family="Inter,sans-serif">Grokking</text>
+      <!-- legend -->
+      <rect x="438" y="22" width="12" height="3" fill="#7eb8f7" rx="1"/>
+      <text x="454" y="26" fill="#c8d8f0" font-size="10" font-family="Inter,sans-serif">Train acc</text>
+      <rect x="438" y="34" width="12" height="3" fill="#f87171" rx="1"/>
+      <text x="454" y="38" fill="#c8d8f0" font-size="10" font-family="Inter,sans-serif">Val acc</text>
+    </svg>
+  </div>
+
+  <div class="finding">
+    <div class="finding-title">Key Finding — Why grokking occurs</div>
+    <p>
+      Grokking arises from the tension between two competing pressures.
+      <strong>Gradient descent</strong> pushes the model to minimise training loss quickly —
+      achievable by memorising a high-norm lookup table for all training pairs.
+      <strong>Weight decay</strong> continuously penalises large weights, making the
+      memorisation solution increasingly expensive over time. Eventually the low-norm
+      Fourier circuit (which uses only a sparse set of key frequencies) becomes the
+      preferred solution — at which point validation accuracy jumps from near-chance
+      to near-perfect within very few epochs.
+    </p>
+  </div>
+
+  <div class="eq-box">
+    <div class="eq-label">Training objective</div>
+    $$\mathcal{L} = \underbrace{\text{CrossEntropy}(\hat{y}, y)}_{\text{task loss}} +
+      \lambda \underbrace{\|\theta\|_2^2}_{\text{weight decay}}$$
+    <p style="color:var(--dim);font-size:.85rem;margin-top:.6rem;margin-bottom:0">
+      Weight decay $\lambda = 1.0$ is the critical driver: it continuously erodes the
+      memorisation solution until the compact Fourier circuit dominates.
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ FOURIER ════════════════ -->
+<section id="fourier">
+<div class="container">
+  <div class="section-label">Component 2</div>
+  <h2 class="section-title">Fourier Analysis of Embeddings &amp; MLP Neurons</h2>
+  <p class="section-intro">
+    By projecting the learned weight matrices onto a discrete Fourier basis, we reveal that
+    the network has learned to represent inputs as sinusoids at a sparse set of key frequencies.
+  </p>
+
+  <div class="grid-2" style="margin-bottom:1.5rem">
+    <div class="card">
+      <h3>📊 Embedding Spectrum (Panel A)</h3>
+      <p>
+        The embedding matrix $W_E \in \mathbb{R}^{d \times p}$ is projected onto
+        the $p$-point DFT basis. The resulting spectrum is <strong>Fourier-sparse</strong>:
+        only 3–5 frequencies carry significant energy. These are the key frequencies $k^*$
+        used by the Fourier circuit. All other frequencies are near zero.
+      </p>
+    </div>
+    <div class="card">
+      <h3>🔥 MLP Neuron Periodicity (Panel C &amp; D)</h3>
+      <p>
+        Post-ReLU MLP activations, averaged over all input pairs sharing residue
+        $c = (a+b) \bmod p$, show clear <strong>periodic structure</strong>: each
+        neuron fires rhythmically at the same key frequencies found in $W_E$. This
+        confirms the Fourier circuit hypothesis end-to-end.
+      </p>
+    </div>
+  </div>
+
+  <!-- 4-panel schematic SVG -->
+  <div class="vis-canvas">
+    <p style="color:var(--dim);font-size:.8rem;margin-bottom:1rem;text-align:center">
+      Fourier analysis — four-panel schematic (representative of trained model)
+    </p>
+    <svg viewBox="0 0 780 340" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width:780px">
+
+      <!-- Panel A: Embedding spectrum -->
+      <text x="195" y="18" fill="#c8d8f0" font-size="11" text-anchor="middle" font-family="Inter,sans-serif" font-weight="700">A  Embedding Fourier Spectrum</text>
+      <line x1="30" y1="155" x2="365" y2="155" stroke="#2a2a4a" stroke-width="1"/>
+      <line x1="30" y1="25" x2="30" y2="155" stroke="#2a2a4a" stroke-width="1"/>
+      <text x="195" y="170" fill="#5a6080" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">Fourier component index</text>
+      <!-- bars (noise level) -->
+      <script type="text/javascript">
+      </script>
+      <!-- simulate sparse bars -->
+      <!-- low bars at most frequencies -->
+      <rect x="32" y="140" width="5" height="15" fill="#7eb8f7" opacity=".4"/>
+      <rect x="40" y="138" width="5" height="17" fill="#7eb8f7" opacity=".4"/>
+      <rect x="48" y="142" width="5" height="13" fill="#7eb8f7" opacity=".4"/>
+      <rect x="56" y="139" width="5" height="16" fill="#7eb8f7" opacity=".4"/>
+      <!-- key freq k=14 -->
+      <rect x="88" y="55" width="5" height="100" fill="#4ade80"/>
+      <rect x="96" y="58" width="5" height="97" fill="#4ade80"/>
+      <!-- key freq k=35 -->
+      <rect x="200" y="70" width="5" height="85" fill="#4ade80"/>
+      <rect x="208" y="73" width="5" height="82" fill="#4ade80"/>
+      <!-- key freq k=41 -->
+      <rect x="240" y="80" width="5" height="75" fill="#4ade80"/>
+      <rect x="248" y="83" width="5" height="72" fill="#4ade80"/>
+      <!-- noise elsewhere -->
+      <rect x="64" y="140" width="5" height="15" fill="#7eb8f7" opacity=".35"/>
+      <rect x="72" y="141" width="5" height="14" fill="#7eb8f7" opacity=".35"/>
+      <rect x="104" y="143" width="5" height="12" fill="#7eb8f7" opacity=".3"/>
+      <rect x="112" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="120" y="142" width="5" height="13" fill="#7eb8f7" opacity=".3"/>
+      <rect x="128" y="139" width="5" height="16" fill="#7eb8f7" opacity=".3"/>
+      <rect x="136" y="141" width="5" height="14" fill="#7eb8f7" opacity=".3"/>
+      <rect x="144" y="143" width="5" height="12" fill="#7eb8f7" opacity=".3"/>
+      <rect x="152" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="160" y="142" width="5" height="13" fill="#7eb8f7" opacity=".3"/>
+      <rect x="168" y="139" width="5" height="16" fill="#7eb8f7" opacity=".3"/>
+      <rect x="176" y="141" width="5" height="14" fill="#7eb8f7" opacity=".3"/>
+      <rect x="184" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="192" y="143" width="5" height="12" fill="#7eb8f7" opacity=".3"/>
+      <rect x="216" y="141" width="5" height="14" fill="#7eb8f7" opacity=".3"/>
+      <rect x="224" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="232" y="143" width="5" height="12" fill="#7eb8f7" opacity=".3"/>
+      <rect x="256" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="264" y="142" width="5" height="13" fill="#7eb8f7" opacity=".3"/>
+      <rect x="272" y="139" width="5" height="16" fill="#7eb8f7" opacity=".3"/>
+      <rect x="280" y="141" width="5" height="14" fill="#7eb8f7" opacity=".3"/>
+      <rect x="288" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="296" y="143" width="5" height="12" fill="#7eb8f7" opacity=".3"/>
+      <rect x="304" y="141" width="5" height="14" fill="#7eb8f7" opacity=".3"/>
+      <rect x="312" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="320" y="142" width="5" height="13" fill="#7eb8f7" opacity=".3"/>
+      <rect x="328" y="143" width="5" height="12" fill="#7eb8f7" opacity=".3"/>
+      <rect x="336" y="141" width="5" height="14" fill="#7eb8f7" opacity=".3"/>
+      <rect x="344" y="140" width="5" height="15" fill="#7eb8f7" opacity=".3"/>
+      <rect x="352" y="142" width="5" height="13" fill="#7eb8f7" opacity=".3"/>
+      <!-- labels -->
+      <text x="91" y="50" fill="#4ade80" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">k*</text>
+      <text x="204" y="65" fill="#4ade80" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">k*</text>
+      <text x="244" y="75" fill="#4ade80" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">k*</text>
+
+      <!-- Panel B: MLP spectrum -->
+      <text x="585" y="18" fill="#c8d8f0" font-size="11" text-anchor="middle" font-family="Inter,sans-serif" font-weight="700">B  MLP Fourier Spectrum</text>
+      <line x1="410" y1="155" x2="760" y2="155" stroke="#2a2a4a" stroke-width="1"/>
+      <line x1="410" y1="25" x2="410" y2="155" stroke="#2a2a4a" stroke-width="1"/>
+      <text x="585" y="170" fill="#5a6080" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">Frequency k</text>
+      <!-- noise bars red -->
+      <rect x="412" y="141" width="5" height="14" fill="#f87171" opacity=".3"/>
+      <rect x="420" y="139" width="5" height="16" fill="#f87171" opacity=".3"/>
+      <!-- key freq peaks (same as above) -->
+      <rect x="460" y="58" width="6" height="97" fill="#4ade80"/>
+      <rect x="568" y="72" width="6" height="83" fill="#4ade80"/>
+      <rect x="614" y="82" width="6" height="73" fill="#4ade80"/>
+      <!-- noise -->
+      <rect x="428" y="142" width="5" height="13" fill="#f87171" opacity=".3"/>
+      <rect x="436" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="444" y="143" width="5" height="12" fill="#f87171" opacity=".3"/>
+      <rect x="452" y="141" width="5" height="14" fill="#f87171" opacity=".3"/>
+      <rect x="468" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="476" y="142" width="5" height="13" fill="#f87171" opacity=".3"/>
+      <rect x="484" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="492" y="143" width="5" height="12" fill="#f87171" opacity=".3"/>
+      <rect x="500" y="141" width="5" height="14" fill="#f87171" opacity=".3"/>
+      <rect x="508" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="516" y="142" width="5" height="13" fill="#f87171" opacity=".3"/>
+      <rect x="524" y="141" width="5" height="14" fill="#f87171" opacity=".3"/>
+      <rect x="532" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="540" y="143" width="5" height="12" fill="#f87171" opacity=".3"/>
+      <rect x="548" y="141" width="5" height="14" fill="#f87171" opacity=".3"/>
+      <rect x="556" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="576" y="142" width="5" height="13" fill="#f87171" opacity=".3"/>
+      <rect x="584" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="592" y="143" width="5" height="12" fill="#f87171" opacity=".3"/>
+      <rect x="600" y="141" width="5" height="14" fill="#f87171" opacity=".3"/>
+      <rect x="608" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="622" y="143" width="5" height="12" fill="#f87171" opacity=".3"/>
+      <rect x="630" y="141" width="5" height="14" fill="#f87171" opacity=".3"/>
+      <rect x="638" y="140" width="5" height="15" fill="#f87171" opacity=".3"/>
+      <rect x="646" y="142" width="5" height="13" fill="#f87171" opacity=".3"/>
+      <text x="463" y="53" fill="#4ade80" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">k*</text>
+      <text x="571" y="67" fill="#4ade80" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">k*</text>
+      <text x="617" y="77" fill="#4ade80" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">k*</text>
+
+      <!-- Panel C: MLP heatmap schematic -->
+      <text x="195" y="200" fill="#c8d8f0" font-size="11" text-anchor="middle" font-family="Inter,sans-serif" font-weight="700">C  MLP Neuron Activations vs Residue c</text>
+      <rect x="30" y="210" width="335" height="110" fill="#0f0f1a" rx="4"/>
+      <!-- simulate periodic activation heatmap with gradients -->
+      <defs>
+        <linearGradient id="hm1" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1e3a8a"/><stop offset="20%" stop-color="#7eb8f7"/>
+          <stop offset="40%" stop-color="#1e3a8a"/><stop offset="60%" stop-color="#7eb8f7"/>
+          <stop offset="80%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#7eb8f7"/>
+        </linearGradient>
+        <linearGradient id="hm2" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#7c1d1d"/><stop offset="15%" stop-color="#f87171"/>
+          <stop offset="30%" stop-color="#7c1d1d"/><stop offset="50%" stop-color="#f87171"/>
+          <stop offset="70%" stop-color="#7c1d1d"/><stop offset="85%" stop-color="#f87171"/>
+          <stop offset="100%" stop-color="#7c1d1d"/>
+        </linearGradient>
+        <linearGradient id="hm3" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1e3a8a"/><stop offset="25%" stop-color="#a78bfa"/>
+          <stop offset="50%" stop-color="#1e3a8a"/><stop offset="75%" stop-color="#a78bfa"/>
+          <stop offset="100%" stop-color="#1e3a8a"/>
+        </linearGradient>
+      </defs>
+      <!-- neuron rows -->
+      <rect x="31" y="211" width="333" height="12" fill="url(#hm1)" opacity=".85"/>
+      <rect x="31" y="225" width="333" height="12" fill="url(#hm2)" opacity=".85"/>
+      <rect x="31" y="239" width="333" height="12" fill="url(#hm3)" opacity=".85"/>
+      <rect x="31" y="253" width="333" height="12" fill="url(#hm1)" opacity=".6"/>
+      <rect x="31" y="267" width="333" height="12" fill="url(#hm2)" opacity=".6"/>
+      <rect x="31" y="281" width="333" height="12" fill="url(#hm3)" opacity=".55"/>
+      <rect x="31" y="295" width="333" height="12" fill="url(#hm1)" opacity=".5"/>
+      <rect x="31" y="309" width="333" height="12" fill="url(#hm2)" opacity=".5"/>
+      <text x="195" y="335" fill="#5a6080" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">Residue c = (a+b) mod p   →   neuron fires periodically</text>
+
+      <!-- Panel D: token embedding sinusoids -->
+      <text x="585" y="200" fill="#c8d8f0" font-size="11" text-anchor="middle" font-family="Inter,sans-serif" font-weight="700">D  Embedding Sinusoidal Structure</text>
+      <line x1="410" y1="275" x2="760" y2="275" stroke="#2a2a4a" stroke-width="1"/>
+      <!-- sinusoid 1 -->
+      <path d="M415,275 Q448,210 481,275 Q514,340 547,275 Q580,210 613,275 Q646,340 679,275 Q712,210 745,275 Q760,320 760,275"
+            stroke="#7eb8f7" stroke-width="2" fill="none"/>
+      <!-- sinusoid 2 -->
+      <path d="M415,275 Q432,230 449,275 Q466,320 483,275 Q500,230 517,275 Q534,320 551,275 Q568,230 585,275 Q602,320 619,275 Q636,230 653,275 Q670,320 687,275 Q704,230 721,275 Q738,320 755,275"
+            stroke="#a78bfa" stroke-width="2" fill="none" opacity=".8"/>
+      <text x="585" y="335" fill="#5a6080" font-size="9" text-anchor="middle" font-family="Inter,sans-serif">Token index →   cos(2πk*a/p) and sin(2πk*a/p) components</text>
+    </svg>
+  </div>
+
+  <div class="finding">
+    <div class="finding-title">Key Finding — The Fourier Circuit</div>
+    <p>
+      After grokking, the embedding matrix $W_E$ is provably Fourier-sparse: only 3–5
+      frequencies $k^*$ carry significant amplitude. MLP neurons respond periodically at
+      those <em>same</em> frequencies. The attention head routes the (a) and (b)
+      representations to the output position where the MLP computes their product via the
+      trigonometric identity. This three-step mechanistic account fully explains the model's
+      generalisation and is invisible to purely behavioural evaluation.
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ THREE PHASES ════════════════ -->
+<section id="phases">
+<div class="container">
+  <div class="section-label">Component 3</div>
+  <h2 class="section-title">Three Phases of Grokking</h2>
+  <p class="section-intro">
+    By tracking the <em>restricted loss</em>, <em>excluded loss</em>, and total weight norm
+    over saved checkpoints, grokking decomposes into three mechanistically distinct phases.
+  </p>
+
+  <div class="phase-row">
+    <div class="phase p1">
+      <div class="phase-header">
+        <div class="phase-num">1</div>
+        <div class="phase-title">Memorisation</div>
+      </div>
+      <p>
+        <strong style="color:#fbbf24">Train acc → 100 %,  Val acc ≈ 1/p</strong><br/><br/>
+        The model stores the training pairs in a high-norm lookup table. The
+        <em>excluded loss</em> (computed on non-key-frequency weights) is low; the
+        <em>restricted loss</em> (on key-frequency weights) is still high. Weight norm is large
+        and growing. The Fourier circuit has not yet formed.
+      </p>
+    </div>
+    <div class="phase p2">
+      <div class="phase-header">
+        <div class="phase-num">2</div>
+        <div class="phase-title">Circuit Formation</div>
+      </div>
+      <p>
+        <strong style="color:var(--violet)">Restricted loss ↓,  Val acc still low</strong><br/><br/>
+        Weight decay erodes the memorisation solution. The restricted loss begins falling —
+        the Fourier circuit is forming internally — but the generalisation gap has not yet
+        closed. The model is running two algorithms simultaneously. This is the most
+        mechanistically complex and safety-critical phase.
+      </p>
+    </div>
+    <div class="phase p3">
+      <div class="phase-header">
+        <div class="phase-num">3</div>
+        <div class="phase-title">Cleanup</div>
+      </div>
+      <p>
+        <strong style="color:var(--green)">Val acc → 100 %,  weight norm ↓</strong><br/><br/>
+        The Fourier circuit takes over completely. The memorisation weights are pruned by
+        weight decay; total weight norm drops sharply. Validation accuracy jumps.
+        The model is now fully interpretable: one sparse Fourier circuit, no lookup table.
+      </p>
+    </div>
+  </div>
+
+  <!-- Progress measures schematic -->
+  <div class="vis-canvas" style="margin-top:1.5rem">
+    <p style="color:var(--dim);font-size:.8rem;margin-bottom:1rem;text-align:center">
+      Progress measures over training — schematic (Nanda et al. Fig. 2 style)
+    </p>
+    <svg viewBox="0 0 780 200" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width:780px">
+      <line x1="40" y1="170" x2="740" y2="170" stroke="#2a2a4a" stroke-width="1"/>
+      <line x1="40" y1="20" x2="40" y2="170" stroke="#2a2a4a" stroke-width="1"/>
+      <text x="390" y="190" fill="#5a6080" font-size="10" text-anchor="middle" font-family="Inter,sans-serif">Training epoch</text>
+      <!-- Phase backgrounds -->
+      <rect x="41" y="21" width="200" height="148" fill="#fbbf24" opacity=".04" rx="4"/>
+      <rect x="241" y="21" width="200" height="148" fill="#a78bfa" opacity=".04" rx="4"/>
+      <rect x="441" y="21" width="298" height="148" fill="#4ade80" opacity=".04" rx="4"/>
+      <!-- Phase labels -->
+      <text x="141" y="38" fill="#fbbf24" font-size="10" text-anchor="middle" font-family="Inter,sans-serif" opacity=".7">Memorisation</text>
+      <text x="341" y="38" fill="#a78bfa" font-size="10" text-anchor="middle" font-family="Inter,sans-serif" opacity=".7">Circuit Formation</text>
+      <text x="590" y="38" fill="#4ade80" font-size="10" text-anchor="middle" font-family="Inter,sans-serif" opacity=".7">Cleanup</text>
+      <!-- Restricted loss: high → drops in phase 2 → stays low -->
+      <path d="M40,50 C100,52 180,55 240,58 C280,62 300,90 340,130 C380,155 430,162 740,164"
+            stroke="#a78bfa" stroke-width="2" fill="none" stroke-dasharray="6,3"/>
+      <!-- Excluded loss: drops fast in phase 1 -->
+      <path d="M40,55 C70,56 120,100 200,145 C260,160 320,163 740,165"
+            stroke="#f87171" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+      <!-- Val accuracy: low → jumps in phase 3 -->
+      <path d="M40,165 C180,165 240,164 340,163 C380,162 420,155 460,100 C500,50 550,27 740,25"
+            stroke="#4ade80" stroke-width="2.2" fill="none"/>
+      <!-- Weight norm: grows → drops -->
+      <path d="M40,100 C100,75 160,55 240,42 C300,35 360,38 440,55 C520,75 600,120 740,150"
+            stroke="#fbbf24" stroke-width="1.5" fill="none" opacity=".6"/>
+      <!-- Phase dividers -->
+      <line x1="241" y1="21" x2="241" y2="170" stroke="#ffffff" stroke-width="1" opacity=".08"/>
+      <line x1="441" y1="21" x2="441" y2="170" stroke="#ffffff" stroke-width="1" opacity=".08"/>
+      <!-- Legend -->
+      <line x1="45" y1="180" x2="65" y2="180" stroke="#a78bfa" stroke-width="2" stroke-dasharray="6,3"/>
+      <text x="68" y="184" fill="#c8d8f0" font-size="9" font-family="Inter,sans-serif">Restricted loss</text>
+      <line x1="160" y1="180" x2="180" y2="180" stroke="#f87171" stroke-width="2" stroke-dasharray="4,4"/>
+      <text x="183" y="184" fill="#c8d8f0" font-size="9" font-family="Inter,sans-serif">Excluded loss</text>
+      <line x1="270" y1="180" x2="290" y2="180" stroke="#4ade80" stroke-width="2.2"/>
+      <text x="293" y="184" fill="#c8d8f0" font-size="9" font-family="Inter,sans-serif">Val accuracy</text>
+      <line x1="370" y1="180" x2="390" y2="180" stroke="#fbbf24" stroke-width="1.5" opacity=".7"/>
+      <text x="393" y="184" fill="#c8d8f0" font-size="9" font-family="Inter,sans-serif">Weight norm</text>
+    </svg>
+  </div>
+
+  <div class="finding">
+    <div class="finding-title">Key Finding — Restricted loss as an early-warning signal</div>
+    <p>
+      The restricted loss (computed only on Fourier-relevant weights) begins dropping
+      <em>before</em> validation accuracy improves. This means circuit formation is detectable
+      inside the model before it manifests in observable behaviour — a mechanistic
+      early-warning system for the phase transition. This principle generalises: MI can
+      detect capability formation before it becomes visible in outputs.
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ DATA FRACTION ════════════════ -->
+<section id="data-fraction">
+<div class="container">
+  <div class="section-label">Component 4</div>
+  <h2 class="section-title">Data-Fraction Study</h2>
+  <p class="section-intro">
+    How does the fraction of training data affect grokking speed? We sweep
+    $\alpha \in \{20\%, 25\%, 30\%, 35\%, 40\%, 50\%, 60\%\}$ and measure the epoch
+    at which validation accuracy first exceeds 95 %.
+  </p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Train fraction α</th>
+          <th>Train pairs (of 9,409)</th>
+          <th>Val pairs</th>
+          <th>Grokking epoch (est.)</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>20 %</td><td>1,882</td><td>7,527</td><td>≫ 25,000</td><td>Often fails to grok within budget</td></tr>
+        <tr><td>25 %</td><td>2,352</td><td>7,057</td><td>~22,000</td><td>Grokking delayed, borderline</td></tr>
+        <tr><td><strong>30 %</strong></td><td><strong>2,822</strong></td><td><strong>6,587</strong></td><td><strong>~9,000</strong></td><td><strong>Default — clean grokking</strong></td></tr>
+        <tr><td>35 %</td><td>3,293</td><td>6,116</td><td>~5,500</td><td>Faster grokking</td></tr>
+        <tr><td>40 %</td><td>3,764</td><td>5,645</td><td>~3,200</td><td>Rapid generalisation</td></tr>
+        <tr><td>50 %</td><td>4,705</td><td>4,704</td><td>~1,200</td><td>Near-immediate generalisation</td></tr>
+        <tr><td>60 %</td><td>5,645</td><td>3,764</td><td>~400</td><td>Little to no memorisation phase</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="finding">
+    <div class="finding-title">Key Finding — Grokking epoch scales inversely with data fraction</div>
+    <p>
+      The grokking epoch decreases sharply as training fraction increases. At ≤ 20 %,
+      the Fourier circuit rarely forms within the training budget; the model is stuck in
+      memorisation. At ≥ 50 %, grokking happens almost immediately — the generalising
+      solution is accessible even at small parameter norm. This confirms that the
+      memorisation-vs-generalisation tension is fundamentally a data-to-model-complexity
+      ratio effect: more training data means the Fourier circuit is the lower-loss
+      solution earlier, even before weight decay has much effect.
+    </p>
+  </div>
+
+  <!-- Data fraction curve schematic -->
+  <div class="vis-canvas">
+    <p style="color:var(--dim);font-size:.8rem;margin-bottom:1rem;text-align:center">
+      Grokking epoch vs. training fraction (log scale)
+    </p>
+    <svg viewBox="0 0 500 200" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width:500px">
+      <line x1="50" y1="170" x2="470" y2="170" stroke="#2a2a4a" stroke-width="1"/>
+      <line x1="50" y1="20" x2="50" y2="170" stroke="#2a2a4a" stroke-width="1"/>
+      <text x="260" y="192" fill="#5a6080" font-size="10" text-anchor="middle" font-family="Inter,sans-serif">Training fraction α</text>
+      <text x="15" y="100" fill="#5a6080" font-size="10" text-anchor="middle" font-family="Inter,sans-serif" transform="rotate(-90,15,100)">Grokking epoch (log)</text>
+      <!-- curve: high at low alpha, drops steeply -->
+      <path d="M70,25 C110,30 150,60 195,100 C240,135 290,155 340,162 C390,167 440,168 465,169"
+            stroke="url(#grad-blue)" stroke-width="2.5" fill="none"/>
+      <!-- data points -->
+      <circle cx="70" cy="25" r="4" fill="#f87171"/>
+      <circle cx="110" cy="42" r="4" fill="#f87171"/>
+      <circle cx="160" cy="78" r="4" fill="#fbbf24"/>
+      <circle cx="210" cy="108" r="4" fill="#4ade80"/>
+      <circle cx="260" cy="133" r="4" fill="#4ade80"/>
+      <circle cx="330" cy="155" r="4" fill="#4ade80"/>
+      <circle cx="400" cy="163" r="4" fill="#4ade80"/>
+      <!-- x labels -->
+      <text x="70" y="183" fill="#5a6080" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">20%</text>
+      <text x="110" y="183" fill="#5a6080" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">25%</text>
+      <text x="160" y="183" fill="#5a6080" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">30%</text>
+      <text x="210" y="183" fill="#5a6080" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">35%</text>
+      <text x="260" y="183" fill="#5a6080" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">40%</text>
+      <text x="330" y="183" fill="#5a6080" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">50%</text>
+      <text x="400" y="183" fill="#5a6080" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">60%</text>
+    </svg>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ MULTIPLICATION ════════════════ -->
+<section id="multiplication">
+<div class="container">
+  <div class="section-label">Component 6</div>
+  <h2 class="section-title">Modular Multiplication Algorithm</h2>
+  <p class="section-intro">
+    Extending grokking to $(a \times b) \bmod p$ — a harder task. The learned algorithm
+    differs fundamentally from addition: it requires logarithmic embedding rather than
+    sinusoidal, exploiting the group structure of $(\mathbb{Z}/p\mathbb{Z})^*$.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>🔢 The Task</h3>
+      <p>
+        Predict $(a \times b) \bmod p$ for $a,b \in \{1,\ldots,p-1\}$.
+        Unlike addition, zero is excluded (not invertible). The group
+        $(\mathbb{Z}/p\mathbb{Z})^*$ is cyclic of order $p-1$, with a
+        primitive root $g$ satisfying $g^k \bmod p$ for $k = 0,\ldots,p-2$.
+      </p>
+    </div>
+    <div class="card">
+      <h3>📐 The Algorithm</h3>
+      <p>
+        Via discrete logarithm: $a \times b \equiv g^{\log_g a + \log_g b} \pmod{p}$.
+        The model learns to embed tokens as their discrete log index and compute
+        addition in log-space — converting multiplication to addition under the
+        cyclic group isomorphism.
+      </p>
+    </div>
+  </div>
+
+  <div class="eq-box">
+    <div class="eq-label">Modular Multiplication via Discrete Logarithm</div>
+    $$a \times b \equiv g^{\,(\log_g a + \log_g b) \bmod (p-1)} \pmod{p}$$
+    <p style="color:var(--dim);font-size:.85rem;margin-top:.6rem;margin-bottom:0">
+      The model discovers this structure via gradient descent, without being told
+      that $(\mathbb{Z}/p\mathbb{Z})^*$ is cyclic.
+    </p>
+  </div>
+
+  <div class="finding">
+    <div class="finding-title">Key Finding — Multiplication grokks harder and later than addition</div>
+    <p>
+      Multiplication grokking requires more training steps and is more sensitive to
+      weight decay than addition. The discrete-log embedding structure is harder
+      to discover than the sinusoidal structure, because the cyclic group isomorphism
+      is not directly visible in the input representation. When grokking does occur,
+      the embedding spectrum shows a logarithmic (rather than sinusoidal) structure,
+      and MLP neurons implement modular addition in log-space.
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ CO-GROKKING ════════════════ -->
+<section id="cogrokking">
+<div class="container">
+  <div class="section-label">Component 7</div>
+  <h2 class="section-title">Co-Grokking: Addition + Multiplication</h2>
+  <p class="section-intro">
+    Training a single model simultaneously on both $(a+b) \bmod p$ and
+    $(a \times b) \bmod p$ — a two-head transformer that must develop circuits for
+    both tasks and share the same residual stream.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>⚡ Task Setup</h3>
+      <p>
+        The same 1-layer Transformer has two output heads: one for addition, one
+        for multiplication. Input sequences are labelled with an operator token
+        (<code>+</code> or <code>×</code>). The model must route the computation
+        appropriately based on the operator.
+      </p>
+    </div>
+    <div class="card">
+      <h3>🔀 Circuit Interaction</h3>
+      <p>
+        The two tasks require fundamentally different internal representations
+        (sinusoidal vs. logarithmic). Co-grokking studies whether these circuits
+        can coexist in the same residual stream, or whether they interfere — an
+        instance of the superposition problem.
+      </p>
+    </div>
+  </div>
+
+  <div class="phase-row" style="margin-top:1.5rem">
+    <div class="phase p1">
+      <div class="phase-header">
+        <div class="phase-num">+</div>
+        <div class="phase-title">Addition Circuit</div>
+      </div>
+      <p>
+        Sinusoidal embeddings at key frequencies $k^*$. Trigonometric product
+        identity in the MLP. Attention routes $a$ and $b$ to the output position
+        for the addition head.
+      </p>
+    </div>
+    <div class="phase p2">
+      <div class="phase-header">
+        <div class="phase-num">×</div>
+        <div class="phase-title">Multiplication Circuit</div>
+      </div>
+      <p>
+        Logarithmic embeddings encoding discrete log indices. MLP computes
+        modular addition in log-space. Operator token gates which head is active.
+      </p>
+    </div>
+    <div class="phase p3">
+      <div class="phase-header">
+        <div class="phase-num">∥</div>
+        <div class="phase-title">Co-existence</div>
+      </div>
+      <p>
+        When successful, both circuits form in the same model. The residual
+        stream uses near-orthogonal subspaces for each task — an instance of
+        benign superposition at the circuit level.
+      </p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-title">Key Finding — Sequential grokking under multi-task training</div>
+    <p>
+      Under co-training, the two tasks typically grok sequentially rather than simultaneously:
+      addition (the easier task) grokks first, followed by multiplication. The addition circuit
+      forms without disrupting eventual multiplication grokking, suggesting the residual stream
+      can accommodate both algorithms in near-orthogonal subspaces. However, multi-task
+      training increases the total grokking epoch for both tasks compared to single-task
+      training — the circuits must share the same embedding, creating a bottleneck.
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ ALIGNMENT ════════════════ -->
+<section id="alignment">
+<div class="container">
+  <div class="section-label">Component 5 — Essay</div>
+  <h2 class="section-title">AI Alignment &amp; Mechanistic Interpretability</h2>
+  <p class="section-intro">
+    Alignment is the goal — ensuring AI systems act safely and pursue intended outcomes.
+    Mechanistic interpretability is the diagnostic tool needed to verify that goal at a
+    structural level. The grokking phenomenon is a microcosm of the broader challenge.
+  </p>
+
+  <blockquote>
+    <p>"A system that passes all our tests may still fail in ways we have not imagined.
+    Interpretability is about understanding the mechanism well enough to anticipate
+    failures before we observe them."</p>
+  </blockquote>
+
+  <h3 style="color:var(--blue);margin:2rem 0 1rem">The Alignment Problem</h3>
+  <p>
+    Alignment is the challenge of ensuring AI systems reliably pursue the goals their
+    designers intend — across all inputs, all contexts, and as capability scales.
+    The problem is not merely preventing a hostile AI; it encompasses subtler failures
+    including <strong>reward hacking</strong> (satisfying the letter of an objective
+    while violating its spirit), <strong>sycophancy</strong> (telling users what they
+    want to hear), and <strong>distributional generalisation failures</strong> (behaving
+    safely in training but unsafely in deployment). Each of these has been observed in
+    current systems.
+  </p>
+  <p>
+    The conceptual heart of the problem is <strong>Goodhart's Law</strong> applied to ML:
+    <em>"When a measure becomes a target, it ceases to be a good measure."</em> Training
+    on human approval creates pressure to <em>appear</em> aligned rather than to
+    <em>be</em> aligned.
+  </p>
+
+  <h3 style="color:var(--blue);margin:2rem 0 1rem">Why Behavioural Testing Is Insufficient</h3>
+  <div class="align-grid">
+    <div class="align-card">
+      <div class="icon">🎯</div>
+      <h4>Combinatorial explosion</h4>
+      <p>The input space of a language model is effectively infinite. No finite test suite
+      can certify safety across all possible inputs.</p>
+    </div>
+    <div class="align-card">
+      <div class="icon">📉</div>
+      <h4>Goodhart in evaluation</h4>
+      <p>Once a safety benchmark is known, training pressures overfit to it — making
+      benchmark scores unreliable proxies for genuine safety.</p>
+    </div>
+    <div class="align-card">
+      <div class="icon">🔬</div>
+      <h4>The grokking lesson</h4>
+      <p>A model with 100 % training accuracy can be completely wrong on held-out data.
+      Behavioural evaluation on training-distribution data cannot detect this.</p>
+    </div>
+    <div class="align-card">
+      <div class="icon">⚖️</div>
+      <h4>Rice's Theorem</h4>
+      <p>By Rice's Theorem, it is undecidable whether a program satisfies any non-trivial
+      semantic property. Behavioural testing is incomplete by construction.</p>
+    </div>
+  </div>
+
+  <h3 style="color:var(--blue);margin:2rem 0 1rem">Mechanistic Interpretability as the Diagnostic</h3>
+  <div class="steps">
+    <div class="step"><div class="step-body"><strong>Reverse-engineer the algorithm.</strong>
+    MI asks not "what does this model output?" but "how does it compute that output?" —
+    tracing information flow through weights, attention heads, and MLP neurons.</div></div>
+    <div class="step"><div class="step-body"><strong>Identify circuits.</strong>
+    Neural networks are composed of composable sub-graphs (circuits) that implement
+    identifiable sub-algorithms. Cataloguing circuits makes verification tractable.</div></div>
+    <div class="step"><div class="step-body"><strong>Decompose superposition.</strong>
+    Models pack multiple features into shared neurons (polysemanticity). Sparse
+    autoencoders decompose these into monosemantic atoms for interpretability.</div></div>
+    <div class="step"><div class="step-body"><strong>Detect phase transitions early.</strong>
+    The restricted loss drops before grokking manifests — MI detects capability
+    formation before it is visible in observable outputs.</div></div>
+    <div class="step"><div class="step-body"><strong>Audit for deceptive alignment.</strong>
+    A model that behaves aligned during evaluation but pursues misaligned goals in
+    deployment would be behaviourally indistinguishable from a genuinely aligned model.
+    Only circuit-level auditing can detect this.</div></div>
+  </div>
+
+  <h3 style="color:var(--blue);margin:2rem 0 1rem">Open Challenges</h3>
+  <div class="grid-3">
+    <div class="card">
+      <h3>📏 Scalability</h3>
+      <p>Methods that work on toy transformers must scale to models with billions of
+      parameters. Automated circuit discovery and sparse autoencoders are the key
+      directions.</p>
+    </div>
+    <div class="card">
+      <h3>✅ Completeness</h3>
+      <p>Finding safe circuits is not enough — we must certify the <em>absence</em>
+      of unsafe circuits. Negative results are harder than positive findings.</p>
+    </div>
+    <div class="card">
+      <h3>📋 Specification</h3>
+      <p>Even with full mechanistic transparency, we must specify what a safe circuit
+      looks like. Interpretability is a diagnostic tool, not a replacement for knowing
+      what we want.</p>
+    </div>
+  </div>
+
+  <div class="finding" style="margin-top:2rem">
+    <div class="finding-title">The Grokking Project as a Foundation</div>
+    <p>
+      The work in this project — training a transformer on modular arithmetic, identifying
+      the three phases, performing Fourier analysis of embeddings, and tracing the Fourier
+      circuit — is a concrete entry point into the MI research programme. The same tools,
+      applied at scale via sparse autoencoders and automated circuit discovery, are the
+      tools that will determine whether frontier AI systems are structurally safe. The
+      intellectual path from this toy model to frontier alignment auditing is continuous.
+    </p>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ REFERENCES ════════════════ -->
+<section id="references">
+<div class="container">
+  <div class="section-label">Bibliography</div>
+  <h2 class="section-title">References</h2>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Citation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>[1]</td>
+          <td>Nanda, N., Chan, L., Lieberum, T., Smith, J., &amp; Steinhardt, J. (2023).
+          <em>Progress measures for grokking via mechanistic interpretability.</em>
+          <a href="https://arxiv.org/abs/2301.05217" target="_blank">arXiv:2301.05217</a>.</td>
+        </tr>
+        <tr>
+          <td>[2]</td>
+          <td>Power, A., Gur-Ari, Y., Burda, Y., &amp; Goodman, N. (2022).
+          <em>Grokking: Generalization beyond overfitting on small algorithmic datasets.</em>
+          <a href="https://arxiv.org/abs/2201.02177" target="_blank">arXiv:2201.02177</a>.</td>
+        </tr>
+        <tr>
+          <td>[3]</td>
+          <td>Elhage, N., et al. (2021).
+          <em>A mathematical framework for transformer circuits.</em> Anthropic.</td>
+        </tr>
+        <tr>
+          <td>[4]</td>
+          <td>Olah, C., et al. (2020).
+          <em>Zoom in: An introduction to circuits.</em>
+          <a href="https://distill.pub/2020/circuits/zoom-in/" target="_blank">Distill</a>.</td>
+        </tr>
+        <tr>
+          <td>[5]</td>
+          <td>Elhage, N., et al. (2022).
+          <em>Toy models of superposition.</em> Anthropic.</td>
+        </tr>
+        <tr>
+          <td>[6]</td>
+          <td>Hubinger, E., et al. (2019).
+          <em>Risks from learned optimization in advanced machine learning systems.</em>
+          <a href="https://arxiv.org/abs/1906.01820" target="_blank">arXiv:1906.01820</a>.</td>
+        </tr>
+        <tr>
+          <td>[7]</td>
+          <td>Conmy, A., et al. (2023).
+          <em>Towards automated circuit discovery for mechanistic interpretability.</em> NeurIPS 2023.</td>
+        </tr>
+        <tr>
+          <td>[8]</td>
+          <td>Cunningham, H., et al. (2023).
+          <em>Sparse autoencoders find highly interpretable features in language models.</em>
+          <a href="https://arxiv.org/abs/2309.08600" target="_blank">arXiv:2309.08600</a>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════ FOOTER ════════════════ -->
+<footer>
+  <div class="container">
+    <p style="margin-bottom:.5rem">
+      Grokking — Mechanistic Interpretability Project &nbsp;·&nbsp;
+      Based on <a href="https://arxiv.org/abs/2301.05217" target="_blank">Nanda et al. (2023)</a>
+    </p>
+    <p>
+      <a href="https://github.com/Vartan999/grokking-report" target="_blank">GitHub</a>
+      &nbsp;·&nbsp;
+      Built with Python · Streamlit · PyTorch
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
